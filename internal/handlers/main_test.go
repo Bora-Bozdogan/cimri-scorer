@@ -8,12 +8,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"scorer/internal/client"
+	metric "scorer/internal/metrics"
 	"scorer/internal/repositories"
 	"scorer/internal/services"
 	"testing"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/driver/postgres"
@@ -24,7 +28,7 @@ type MainTest struct {
 	app                 *fiber.App
 	db                  *gorm.DB
 	productRepo         repositories.ProductRepository
-	merchantRepo 		repositories.MerchantRepository
+	merchantRepo        repositories.MerchantRepository
 	merchantProductRepo repositories.MerchantProductRepository
 	client              client.QueServiceClient
 	service             services.ServicesFuncs
@@ -45,10 +49,19 @@ func (m *MainTest) setupApp() {
 	m.productRepo = repositories.NewProductRepository(m.db)
 	m.merchantRepo = repositories.NewMerchantRepository(m.db)
 	m.merchantProductRepo = repositories.NewMerchantProductRepository(m.db)
-	m.client = client.NewQueServiceClient("http://127.0.0.1:3000")
-	m.service = services.NewServicesFuncs(m.productRepo, m.merchantRepo, m.merchantProductRepo, m.client)
+	m.client = client.NewQueServiceClient("http://127.0.0.1:3000", nil)
+
+	//metrics
+	reg := prometheus.NewRegistry()
+	metric := metric.NewMetric(reg)
+	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+
+	m.service = services.NewServicesFuncs(m.productRepo, m.merchantRepo, m.merchantProductRepo, m.client, metric)
 	m.handler = NewHandler(m.service)
-	m.app.Post("/update", m.handler.HandleScore)
+	m.app.Post("/score", m.handler.HandleScore)
+	
+	// expose /metrics on the same Fiber app/port
+	m.app.Get("/metrics", adaptor.HTTPHandler(promHandler))
 }
 
 func (m MainTest) createContainer(ctx context.Context) *gorm.DB {

@@ -2,9 +2,9 @@ CREATE TABLE if not exists api_keys (
     key TEXT PRIMARY KEY,
     is_active BOOLEAN DEFAULT true,
     created_at  TIMESTAMPTZ DEFAULT NOW()
-)
+);
 
-INSERT INTO api_keys (key) VALUES ('test-key')
+INSERT INTO api_keys (key) VALUES ('test-key');
 
 create table if not exists products (
     id serial primary key,
@@ -13,14 +13,14 @@ create table if not exists products (
     image_url   TEXT DEFAULT 'No image provided',
     popularity_score INT NOT NULL,
     urgency_score INT NOT NULL
-)
+);
 
 create table if not exists merchants (
     id serial primary key,
     name text not null,
     key text not null,
     is_active BOOLEAN DEFAULT true
-)
+);
 
 create table if not exists merchant_products (
     id SERIAL PRIMARY KEY,
@@ -28,7 +28,7 @@ create table if not exists merchant_products (
     merchant_id int NOT NULL references merchants(id) on delete cascade,
     price INT NOT NULL,
     stock INT NOT NULL
-)
+);
 
 with new_merchant as (
     insert into merchants
@@ -48,5 +48,5 @@ insert into merchant_products (product_id, merchant_id, price, stock)
         (select id from new_merchant),
                1500,
                 50
-              )
+              );
 

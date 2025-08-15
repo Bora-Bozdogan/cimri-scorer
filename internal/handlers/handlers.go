@@ -9,17 +9,23 @@ import (
 
 type servicesInterface interface {
 	CalculateScore(req *models.Request) int
+	EnqueueRequest(m models.Request, score int) error
+	IncrementRequestCount()
+	IncrementValidRequestCount()
 }
 
 type Handler struct {
 	service servicesInterface
 }
 
-func NewHandler(s servicesInterface) Handler {
-	return Handler{service: s}
+func NewHandler(service servicesInterface) Handler {
+	return Handler{service: service}
 }
 
 func (h Handler) HandleScore(c *fiber.Ctx) error {
+	//increase requests
+	h.service.IncrementRequestCount()
+
 	//parse json
 	req := new(models.Request)
 	if err := c.BodyParser(req); err != nil {
@@ -34,10 +40,13 @@ func (h Handler) HandleScore(c *fiber.Ctx) error {
 	}
 
 	//compute the score
-	score := h.service.CalculateScore(req)	
+	score := h.service.CalculateScore(req)
+
+	//metric
+	h.service.IncrementValidRequestCount()
 
 	//post the score
-	
+	h.service.EnqueueRequest(*req, score)
 
 	return c.Status(200).SendString(fmt.Sprintf("%d sent to que", score))
 }

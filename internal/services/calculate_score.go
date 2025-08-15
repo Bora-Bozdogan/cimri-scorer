@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"scorer/internal/models"
 )
 
@@ -18,19 +17,25 @@ type merchantRepoInterface interface {
 	ReadName(name string) *models.Merchant
 }
 
-type scorerServiceClientInterface interface {
-	EnqueueRequest(m models.Request) error
+type queServiceClient interface {
+	EnqueueRequest(m models.Request, score int) error
+}
+
+type metricsInterface interface {
+	IncrementRequestCount()
+	IncrementValidRequestCount()
 }
 
 type ServicesFuncs struct {
 	productRepo         productRepoInteface
 	merchantRepo        merchantRepoInterface
 	merchantProductRepo merchantProductRepoInterface
-	scorerServiceClient scorerServiceClientInterface
+	queServiceClient    queServiceClient
+	metrics metricsInterface
 }
 
-func NewServicesFuncs(productRepo productRepoInteface, merchantRepo merchantRepoInterface, merchantProductRepo merchantProductRepoInterface, scorerServiceClient scorerServiceClientInterface) ServicesFuncs {
-	return ServicesFuncs{productRepo: productRepo, merchantRepo: merchantRepo, merchantProductRepo: merchantProductRepo, scorerServiceClient: scorerServiceClient}
+func NewServicesFuncs(productRepo productRepoInteface, merchantRepo merchantRepoInterface, merchantProductRepo merchantProductRepoInterface, queServiceClient queServiceClient, metrics metricsInterface) ServicesFuncs {
+	return ServicesFuncs{productRepo: productRepo, merchantRepo: merchantRepo, merchantProductRepo: merchantProductRepo, queServiceClient: queServiceClient, metrics: metrics}
 }
 
 func (s ServicesFuncs) CalculateScore(req *models.Request) int {
@@ -66,14 +71,10 @@ func (s ServicesFuncs) CalculateScore(req *models.Request) int {
 	} else {
 		merchantProduct = s.merchantProductRepo.Read(merchant.ID, product.ID)
 	}
-	// fmt.Printf("product: %+v\n", product)
-	// fmt.Printf("merchant: %+v\n", merchant)
-	fmt.Printf("merchantProduct: %+v\n", merchantProduct)
 	if merchantProduct == nil {
 		//update type is a 7, new item
 		updateType = 7
 	} else {
-		updateType = 0
 		priceChanged := float64(merchantProduct.MerchantPrice-*req.Price) / float64(*req.Price)
 		if priceChanged > 0.2 {
 			//check +%20 price drop
@@ -130,6 +131,14 @@ func (s ServicesFuncs) CalculateScore(req *models.Request) int {
 	return score
 }
 
-func (s ServicesFuncs) EnqueueRequest(req *models.Request) error {
-	return s.scorerServiceClient.EnqueueRequest(*req)
+func (s ServicesFuncs) EnqueueRequest(m models.Request, score int) error {
+	return s.queServiceClient.EnqueueRequest(m, score)
+}
+
+func (s ServicesFuncs) IncrementRequestCount() {
+	s.metrics.IncrementRequestCount()
+}
+
+func (s ServicesFuncs) IncrementValidRequestCount() {
+	s.metrics.IncrementValidRequestCount()
 }

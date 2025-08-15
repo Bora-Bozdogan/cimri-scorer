@@ -6,6 +6,12 @@ import (
 )
 
 type Config struct {
+	QueueParams struct {
+		Address  string `mapstructure:"queue_addr"`
+		Password string `mapstructure:"queue_pass"`
+		Number   int    `mapstructure:"queue_num"`
+		Protocol int    `mapstructure:"queue_protocol"`
+	} `mapstructure:"queue_params"`
 	DBParams struct {
 		Host string `mapstructure:"host"`
 		User string `mapstructure:"user"`
@@ -19,6 +25,10 @@ type Config struct {
 		RateLimitMax int `mapstructure:"rate_limit_max"`
 		RateLimitExpirationSeconds int `mapstructure:"rate_limit_expiration_seconds"`
 	} `mapstructure:"server_params"`
+	MicroserviceParams struct {
+		QueueServerAddress string `mapstructure:"queue_server_address"`
+		QueueListenPort string `mapstructure:"queue_listen_port"`
+	} `mapstructure:"microservice_params"`
 }
 
 func LoadConfig() *Config {

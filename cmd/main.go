@@ -6,9 +6,15 @@ import (
 	"scorer/internal/client"
 	"scorer/internal/config"
 	"scorer/internal/handlers"
+	"scorer/internal/metrics"
+	"scorer/internal/redis_client"
 	"scorer/internal/repositories"
 	"scorer/internal/services"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -26,15 +32,24 @@ func main() {
 	}
 	defer close(db)
 
+	//metrics
+	reg := prometheus.NewRegistry()
+	metric := metric.NewMetric(reg)
+	promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+
 	//initialize vars
 	productRepo := repositories.NewProductRepository(db)
 	merchantRepo := repositories.NewMerchantRepository(db)
 	merchantProductRepo := repositories.NewMerchantProductRepository(db)
-	queServiceClient := client.NewQueServiceClient("")
-	service := services.NewServicesFuncs(productRepo, merchantRepo, merchantProductRepo, queServiceClient)
+	redisClient := redis_client.NewRedisClient(AppConfig.QueueParams.Address, AppConfig.QueueParams.Password, AppConfig.QueueParams.Number, AppConfig.QueueParams.Protocol)
+	queServiceClient := client.NewQueServiceClient(AppConfig.MicroserviceParams.QueueServerAddress, redisClient)
+	service := services.NewServicesFuncs(productRepo, merchantRepo, merchantProductRepo, queServiceClient, metric)
 	handler := handlers.NewHandler(service)
 
 	app.Post("/score", handler.HandleScore)
+
+	// expose /metrics on the same Fiber app/port
+	app.Get("/metrics", adaptor.HTTPHandler(promHandler))
 
 	app.Listen(AppConfig.ServerParams.ListenPort)
 }
